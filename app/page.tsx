@@ -71,15 +71,14 @@ export default function CalendarPlannerPage() {
 
   const [events, setEvents] = useState<EventItem[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
-  
-  // selectedDate = null oznacza pokazywanie WSZYSTKICH wydarzeń
+
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
-  const [currentMonth, setCurrentMonth] = useState<Date>(new Date());
-  
-  // Stany formularza Gemini
+  const [currentMonth, setCurrentMonth] = useState<Date>(new Date(2026, 0, 1));
+  const [todayStr, setTodayStr] = useState<string>('');
+
   const [inputTitle, setInputTitle] = useState<string>('');
   const [isPopupOpen, setIsPopupOpen] = useState<boolean>(false);
-  const [inputDate, setInputDate] = useState<string>(getTodayString());
+  const [inputDate, setInputDate] = useState<string>('');
   const [hasTime, setHasTime] = useState<boolean>(false);
   const [inputTime, setInputTime] = useState<string>('12:00');
   const [inputCategory, setInputCategory] = useState<CategoryKey>('zadanie');

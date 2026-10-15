@@ -55,15 +55,15 @@ const formatYMD = (year: number, monthZeroBased: number, day: number): string =>
   return `${year}-${m}-${d}`;
 };
 
-const getTodayString = (): string => {
-  const d = new Date();
+const dateToString = (d: Date): string => {
   return formatYMD(d.getFullYear(), d.getMonth(), d.getDate());
 };
 
-const addDaysToDate = (daysCount: number): string => {
-  const d = new Date();
+const addDaysToDateStr = (baseDateStr: string, daysCount: number): string => {
+  if (!baseDateStr) return '';
+  const d = new Date(baseDateStr);
   d.setDate(d.getDate() + daysCount);
-  return formatYMD(d.getFullYear(), d.getMonth(), d.getDate());
+  return dateToString(d);
 };
 
 export default function CalendarPlannerPage() {
@@ -71,11 +71,13 @@ export default function CalendarPlannerPage() {
 
   const [events, setEvents] = useState<EventItem[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
-
+  
+  // Bezpieczne wartości początkowe dla builda statycznego
+  const [todayStr, setTodayStr] = useState<string>('');
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [currentMonth, setCurrentMonth] = useState<Date>(new Date(2026, 0, 1));
-  const [todayStr, setTodayStr] = useState<string>('');
-
+  
+  // Stany formularza
   const [inputTitle, setInputTitle] = useState<string>('');
   const [isPopupOpen, setIsPopupOpen] = useState<boolean>(false);
   const [inputDate, setInputDate] = useState<string>('');
@@ -92,8 +94,15 @@ export default function CalendarPlannerPage() {
 
   const mainGridRef = useRef<HTMLDivElement>(null);
 
-  // Pobranie danych z Supabase na starcie
+  // Pobranie danych z Supabase oraz inicjalizacja dat po zamontowaniu na kliencie
   useEffect(() => {
+    const now = new Date();
+    const today = dateToString(now);
+
+    setTodayStr(today);
+    setCurrentMonth(now);
+    setInputDate(today);
+
     const fetchEvents = async () => {
       setIsLoading(true);
       const { data, error } = await supabase.from('events').select('*');
@@ -106,7 +115,7 @@ export default function CalendarPlannerPage() {
     fetchEvents();
   }, []);
 
-  // Obsługa kliknięcia poza kalendarzem i listą -> reset do pokazania wszystkich zadań
+  // Obsługa kliknięcia poza kalendarzem i listą
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (mainGridRef.current && !mainGridRef.current.contains(event.target as Node)) {
@@ -138,7 +147,7 @@ export default function CalendarPlannerPage() {
     for (let i = startingDayOfWeek - 1; i >= 0; i--) {
       const pDay = prevMonthLastDay - i;
       const prevDate = new Date(year, month - 1, pDay);
-      const dateStr = formatYMD(prevDate.getFullYear(), prevDate.getMonth(), prevDate.getDate());
+      const dateStr = dateToString(prevDate);
       days.push({ dateStr, dayNumber: pDay, isCurrentMonth: false });
     }
     
@@ -151,7 +160,7 @@ export default function CalendarPlannerPage() {
     const remainingSlots = totalSlots - days.length;
     for (let i = 1; i <= remainingSlots; i++) {
       const nextDate = new Date(year, month + 1, i);
-      const dateStr = formatYMD(nextDate.getFullYear(), nextDate.getMonth(), nextDate.getDate());
+      const dateStr = dateToString(nextDate);
       days.push({ dateStr, dayNumber: i, isCurrentMonth: false });
     }
     
@@ -160,7 +169,7 @@ export default function CalendarPlannerPage() {
 
   const handleOpenPopup = () => {
     if (!inputTitle.trim()) return;
-    setInputDate(selectedDate || getTodayString());
+    setInputDate(selectedDate || todayStr);
     setIsPopupOpen(true);
   };
 
@@ -178,7 +187,7 @@ export default function CalendarPlannerPage() {
 
     const payload = {
       title: inputTitle.trim(),
-      date: inputDate || getTodayString(),
+      date: inputDate || todayStr,
       time: hasTime ? inputTime : null,
       category: inputCategory,
       completed: false,
@@ -195,7 +204,7 @@ export default function CalendarPlannerPage() {
     setHasTime(false);
   };
 
-  // Zmiana stanu wykonania w Supabase
+  // Zmiana stanu wykonania
   const toggleComplete = async (id: string, currentCompleted: boolean) => {
     setEvents((prev) =>
       prev.map((item) => (item.id === id ? { ...item, completed: !currentCompleted } : item))
@@ -204,7 +213,7 @@ export default function CalendarPlannerPage() {
     await supabase.from('events').update({ completed: !currentCompleted }).eq('id', id);
   };
 
-  // Usuwanie po potwierdzeniu w modalu
+  // Usuwanie po potwierdzeniu
   const confirmDeleteEvent = async () => {
     if (!eventToDelete) return;
     const id = eventToDelete.id;
@@ -215,7 +224,7 @@ export default function CalendarPlannerPage() {
     await supabase.from('events').delete().eq('id', id);
   };
 
-  // Filtrowanie zadań (jeśli selectedDate jest null, pokazuje WSZYSTKIE)
+  // Filtrowanie zadań
   const filteredEvents = useMemo(() => {
     return events
       .filter((ev) => {
@@ -243,7 +252,8 @@ export default function CalendarPlannerPage() {
   }, [events]);
 
   const calculateDaysLeft = (dateStr: string): string => {
-    const today = new Date();
+    if (!todayStr) return '';
+    const today = new Date(todayStr);
     today.setHours(0, 0, 0, 0);
     const target = new Date(dateStr);
     target.setHours(0, 0, 0, 0);
@@ -277,7 +287,7 @@ export default function CalendarPlannerPage() {
           </div>
 
           <div className="text-xs text-slate-400 bg-slate-900 border border-slate-800 px-3 py-1.5 rounded-xl flex items-center gap-2">
-            <span>Dzisiaj: <strong className="text-purple-400">{getTodayString()}</strong></span>
+            <span>Dzisiaj: <strong className="text-purple-400">{todayStr || '...'}</strong></span>
             {isLoading && <Loader2 className="w-3.5 h-3.5 animate-spin text-purple-400" />}
           </div>
         </div>
@@ -321,7 +331,7 @@ export default function CalendarPlannerPage() {
                 {calendarDays.map(({ dateStr, dayNumber, isCurrentMonth }) => {
                   const dayCategories = eventsByDate[dateStr] || [];
                   const isSelected = selectedDate === dateStr;
-                  const isToday = dateStr === getTodayString();
+                  const isToday = todayStr ? dateStr === todayStr : false;
 
                   return (
                     <button
@@ -459,7 +469,7 @@ export default function CalendarPlannerPage() {
                                   {ev.time}
                                 </span>
                               )}
-                              <span className="text-purple-400 font-medium">{daysLeft}</span>
+                              {daysLeft && <span className="text-purple-400 font-medium">{daysLeft}</span>}
                             </div>
                           </div>
                         </div>
@@ -480,8 +490,8 @@ export default function CalendarPlannerPage() {
           </section>
         </div>
 
-        {/* PROMPTER  */}
-        <div className="w-full max-w-3xl mx-auto mb-15 py-4">
+        {/* PROMPTER GEMINI */}
+        <div className="w-full max-w-2xl mx-auto py-4">
           <div className="relative group">
             <div className="absolute -inset-0.5 bg-gradient-to-r from-cyan-500 via-purple-500 to-pink-500 rounded-2xl blur-md opacity-40 group-hover:opacity-70 transition-all duration-300 animate-pulse" />
             <div className="relative bg-slate-900/95 border border-slate-700/90 rounded-2xl p-3 shadow-2xl backdrop-blur-xl flex items-center gap-3 transition-all">
@@ -549,35 +559,34 @@ export default function CalendarPlannerPage() {
               <div className="grid grid-cols-4 gap-1.5">
                 <button
                   type="button"
-                  onClick={() => setInputDate(getTodayString())}
-                  className={`px-2 py-1.5 text-xs rounded-lg border transition-all ${inputDate === getTodayString() ? 'bg-purple-600 text-white border-purple-500' : 'bg-slate-950 border-slate-800 text-slate-400 hover:bg-slate-800'}`}
+                  onClick={() => setInputDate(todayStr)}
+                  className={`px-2 py-1.5 text-xs rounded-lg border transition-all ${inputDate === todayStr ? 'bg-purple-600 text-white border-purple-500' : 'bg-slate-950 border-slate-800 text-slate-400 hover:bg-slate-800'}`}
                 >
                   Dzisiaj
                 </button>
                 <button
                   type="button"
-                  onClick={() => setInputDate(addDaysToDate(1))}
-                  className={`px-2 py-1.5 text-xs rounded-lg border transition-all ${inputDate === addDaysToDate(1) ? 'bg-purple-600 text-white border-purple-500' : 'bg-slate-950 border-slate-800 text-slate-400 hover:bg-slate-800'}`}
+                  onClick={() => setInputDate(addDaysToDateStr(todayStr, 1))}
+                  className={`px-2 py-1.5 text-xs rounded-lg border transition-all ${inputDate === addDaysToDateStr(todayStr, 1) ? 'bg-purple-600 text-white border-purple-500' : 'bg-slate-950 border-slate-800 text-slate-400 hover:bg-slate-800'}`}
                 >
                   Jutro
                 </button>
                 <button
                   type="button"
-                  onClick={() => setInputDate(addDaysToDate(3))}
-                  className={`px-2 py-1.5 text-xs rounded-lg border transition-all ${inputDate === addDaysToDate(3) ? 'bg-purple-600 text-white border-purple-500' : 'bg-slate-950 border-slate-800 text-slate-400 hover:bg-slate-800'}`}
+                  onClick={() => setInputDate(addDaysToDateStr(todayStr, 3))}
+                  className={`px-2 py-1.5 text-xs rounded-lg border transition-all ${inputDate === addDaysToDateStr(todayStr, 3) ? 'bg-purple-600 text-white border-purple-500' : 'bg-slate-950 border-slate-800 text-slate-400 hover:bg-slate-800'}`}
                 >
                   Za 3 dni
                 </button>
                 <button
                   type="button"
-                  onClick={() => setInputDate(addDaysToDate(7))}
-                  className={`px-2 py-1.5 text-xs rounded-lg border transition-all ${inputDate === addDaysToDate(7) ? 'bg-purple-600 text-white border-purple-500' : 'bg-slate-950 border-slate-800 text-slate-400 hover:bg-slate-800'}`}
+                  onClick={() => setInputDate(addDaysToDateStr(todayStr, 7))}
+                  className={`px-2 py-1.5 text-xs rounded-lg border transition-all ${inputDate === addDaysToDateStr(todayStr, 7) ? 'bg-purple-600 text-white border-purple-500' : 'bg-slate-950 border-slate-800 text-slate-400 hover:bg-slate-800'}`}
                 >
                   Za tydzień
                 </button>
               </div>
 
-              {/* OTWIERANIE KALENDARZA PO KLIKNIĘCIU W POLE */}
               <input
                 type="date"
                 value={inputDate}
